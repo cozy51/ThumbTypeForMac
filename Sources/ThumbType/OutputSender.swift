@@ -29,13 +29,18 @@ final class OutputSender {
         // 物理的に押されている修飾キー（親指のShiftなど）の影響を受けないよう、独立した状態で送ります。
         source = CGEventSource(stateID: .privateState)
         source?.userData = Self.tag
+        // JISキーボードとして解釈されるよう、実際のキーボードの種類を引き継ぎます。
+        if let hardware = CGEventSource(stateID: .hidSystemState) {
+            source?.keyboardType = hardware.keyboardType
+        }
     }
 
     func text(_ value: String) {
         if mode == .romaji, let romaji = KanaRomaji.romaji(for: value) {
             for ch in romaji {
                 guard let key = MacKey.asciiKeys[ch] else { continue }
-                post(key: key, unicode: String(ch))
+                // IMEが通常の打鍵と同じに扱えるよう、文字はキーコードから決めさせます。
+                post(key: key, unicode: nil)
             }
             return
         }
@@ -59,7 +64,10 @@ final class OutputSender {
                 }
             }
             event.setIntegerValueField(.eventSourceUserData, value: Self.tag)
-            event.post(tap: .cghidEventTap)
+            // HIDレベルに送ると、押したままの親指Shiftなど物理的な修飾キーの状態が合成されてしまい、
+            // IME（Google日本語入力など）が「Shift＋文字」＝英字入力として扱います。
+            // セッションレベルに送れば、設定したフラグ（修飾なし）のまま届きます。
+            event.post(tap: .cgSessionEventTap)
         }
     }
 }
