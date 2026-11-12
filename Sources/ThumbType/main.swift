@@ -8,17 +8,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
+    static let showSettingsNotification = Notification.Name("io.github.cozy51.ThumbType.showSettings")
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let startItem = NSMenuItem(title: "開始", action: #selector(AppDelegate.start), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "停止・通常入力へ", action: #selector(AppDelegate.stop), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
-            .contains(where: { $0 != NSRunningApplication.current }) {
-            let alert = NSAlert()
-            alert.messageText = "ThumbTypeはすでに起動しています。"
-            alert.informativeText = "メニューバーのキーボードアイコンから操作してください。"
-            alert.runModal()
+        // 二重起動の確認（自分自身はプロセスIDで除外します）。
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        if let bundleID = Bundle.main.bundleIdentifier,
+           let other = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .first(where: { $0.processIdentifier != myPID && !$0.isTerminated }) {
+            // 既に動いている方に設定画面を開かせ、こちらは終了します。
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.showSettingsNotification, object: nil, userInfo: nil, deliverImmediately: true)
+            other.activate(options: [])
             NSApp.terminate(nil)
             return
         }
@@ -47,9 +51,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .sink { [weak self] running, message in self?.update(running: running, message: message) }
             .store(in: &cancellables)
 
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(AppDelegate.showSettings), name: Self.showSettingsNotification, object: nil)
+
         // Windows版と同じく、起動時に自動開始します。
         controller.startAtLaunch()
-        if !controller.running { showSettings() }
+        // 初回起動時と停止中は設定画面を表示します。
+        let defaults = UserDefaults.standard
+        if !controller.running || !defaults.bool(forKey: "launchedBefore") { showSettings() }
+        defaults.set(true, forKey: "launchedBefore")
+    }
+
+    /// 起動中にもう一度アプリを開いた場合は設定画面を出します（メニューバーのアイコンが隠れていても操作できるように）。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSettings()
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
