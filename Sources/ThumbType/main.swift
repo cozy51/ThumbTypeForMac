@@ -9,8 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let startItem = NSMenuItem(title: "開始", action: #selector(start), keyEquivalent: "")
-    private let stopItem = NSMenuItem(title: "停止・通常入力へ", action: #selector(stop), keyEquivalent: "")
+    private let startItem = NSMenuItem(title: "開始", action: #selector(AppDelegate.start), keyEquivalent: "")
+    private let stopItem = NSMenuItem(title: "停止・通常入力へ", action: #selector(AppDelegate.stop), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
@@ -33,13 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             menu.addItem(item)
         }
         menu.addItem(.separator())
-        let settings = NSMenuItem(title: "設定…", action: #selector(showSettings), keyEquivalent: ",")
-        settings.target = self
-        menu.addItem(settings)
+        let settingsItem = NSMenuItem(title: "設定…", action: #selector(AppDelegate.showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "ThumbTypeを終了", action: #selector(quit), keyEquivalent: "q")
-        quit.target = self
-        menu.addItem(quit)
+        let quitItem = NSMenuItem(title: "ThumbTypeを終了", action: #selector(AppDelegate.quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
         statusItem.menu = menu
 
         controller.$running.combineLatest(controller.$statusMessage)

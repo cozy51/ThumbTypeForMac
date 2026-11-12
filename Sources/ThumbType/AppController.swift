@@ -64,7 +64,7 @@ final class AppController: ObservableObject {
     init() {
         engine = Engine(layout: .builtIn)
         router = InputRouter(engine: engine)
-        let d = defaults
+        let d = UserDefaults.standard
         layoutPath = d.string(forKey: "layoutPath") ?? ""
         directMode = d.bool(forKey: "directMode")
         leftThumb = ThumbKey(rawValue: d.object(forKey: "leftThumb") as? Int ?? -1) ?? .space
@@ -195,7 +195,7 @@ final class AppController: ObservableObject {
 
     private func settingsChanged() {
         guard !loading else { return }
-        let d = defaults
+        let d = UserDefaults.standard
         d.set(directMode, forKey: "directMode")
         d.set(leftThumb.rawValue, forKey: "leftThumb")
         d.set(rightThumb.rawValue, forKey: "rightThumb")
