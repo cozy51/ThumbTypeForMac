@@ -25,6 +25,16 @@ struct SettingsView: View {
                         Spacer()
                         Button("システム設定を開く") { controller.openAccessibilitySettings() }
                     }
+                    HStack(alignment: .top) {
+                        Text("一覧でオンなのに開始しない場合は、アプリを更新したため古い許可が残っています。右のボタンで許可をリセットすると、ThumbTypeが再起動します。そのあと表示される案内に従って、もう一度オンにしてください。")
+                            .font(.callout)
+                        Spacer()
+                        Button("許可をリセットして再起動") { controller.resetPermissionsAndQuit() }
+                    }
+                    Text(controller.diagnostics)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                 }
             }
 

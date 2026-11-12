@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Combine
+import CoreGraphics
 import ServiceManagement
 import ThumbTypeCore
 import UniformTypeIdentifiers
@@ -87,44 +88,48 @@ final class AppController: ObservableObject {
     // MARK: 開始・停止
 
     /// 起動時の自動開始。権限がなければ許可を求め、許可されたら開始します。
-    func startAtLaunch() {
-        if Self.isTrusted(prompt: false) {
-            start()
-        } else {
-            _ = Self.isTrusted(prompt: true)
-            needsPermission = true
-            statusMessage = "● 停止中 — アクセシビリティの許可を待っています"
-            waitForPermission()
-        }
-    }
+    func startAtLaunch() { start() }
 
     func start() {
-        guard !running else { return }
+        _ = tryStart(prompt: true)
+    }
+
+    /// キー入力の監視を実際に作れるかで開始を判定します。
+    /// （アドホック署名のアプリを上書きすると、AXIsProcessTrusted の結果が実際と食い違うことがあるため）
+    @discardableResult
+    private func tryStart(prompt: Bool) -> Bool {
+        guard !running else { return true }
         guard layoutLoaded else {
             statusMessage = "● 停止中 — 配列を読み込めません。配列を選び直してください"
-            return
+            return false
         }
         guard leftThumb != rightThumb else {
             statusMessage = "● 停止中 — 左右の親指には別のキーを指定してください"
-            return
+            return false
         }
-        guard Self.isTrusted(prompt: true) else {
-            needsPermission = true
-            statusMessage = "● 停止中 — システム設定でアクセシビリティを許可してください"
-            waitForPermission()
-            return
-        }
-        needsPermission = false
         applySettings()
         let service = KeyboardService(engine: engine, router: router, sender: sender)
         service.onFailure = { [weak self] message in self?.stop(message: message) }
         guard service.start() else {
-            statusMessage = "● 停止中 — キー入力の監視を開始できません（入力監視・アクセシビリティの許可を確認してください）"
-            return
+            if prompt {
+                _ = Self.isTrusted(prompt: true)
+                _ = CGRequestPostEventAccess()
+                _ = CGRequestListenEventAccess()
+            }
+            needsPermission = true
+            statusMessage = "● 停止中 — システム設定でアクセシビリティを許可してください"
+            refreshDiagnostics()
+            waitForPermission()
+            return false
         }
+        permissionTimer?.invalidate()
+        permissionTimer = nil
+        needsPermission = false
         self.service = service
         running = true
         statusMessage = "● 動作中 — 緊急停止 Control + Option + F12"
+        refreshDiagnostics()
+        return true
     }
 
     func stop(message: String? = nil) {
@@ -149,13 +154,61 @@ final class AppController: ObservableObject {
         guard permissionTimer == nil else { return }
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
-            if Self.isTrusted(prompt: false) {
+            self.refreshDiagnostics()
+            if self.running || self.tryStart(prompt: false) {
                 timer.invalidate()
                 self.permissionTimer = nil
-                self.needsPermission = false
-                self.start()
             }
         }
+    }
+
+    // MARK: 権限の診断
+
+    @Published private(set) var diagnostics = ""
+
+    func refreshDiagnostics() {
+        let mark: (Bool) -> String = { $0 ? "○" : "×" }
+        let signing = Self.signing
+        diagnostics = """
+        アクセシビリティ：\(mark(Self.isTrusted(prompt: false)))　入力監視：\(mark(CGPreflightListenEventAccess()))　イベント送信：\(mark(CGPreflightPostEventAccess()))
+        アプリの場所：\(Bundle.main.bundlePath)
+        署名：\(signing)
+        """
+    }
+
+    private static let signing = signingSummary()
+
+    private static func signingSummary() -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-dv", Bundle.main.bundlePath]
+        let pipe = Pipe()
+        process.standardError = pipe
+        process.standardOutput = pipe
+        do { try process.run() } catch { return "不明" }
+        process.waitUntilExit()
+        let text = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let lines = text.split(separator: "\n").filter { $0.hasPrefix("CDHash=") || $0.hasPrefix("Signature=") || $0.hasPrefix("Identifier=") }
+        return lines.isEmpty ? "不明" : lines.joined(separator: "　")
+    }
+
+    /// このアプリのアクセシビリティ・入力監視の許可をリセットして終了します（再起動後に許可し直します）。
+    func resetPermissionsAndQuit() {
+        let bundleID = Bundle.main.bundleIdentifier ?? "io.github.cozy51.ThumbType"
+        for service in ["Accessibility", "ListenEvent", "PostEvent"] {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            process.arguments = ["reset", service, bundleID]
+            try? process.run()
+            process.waitUntilExit()
+        }
+        // 自分自身を少し後に起動し直してから終了します。
+        let relaunch = Process()
+        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relaunch.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? relaunch.run()
+        stop()
+        NSApp.terminate(nil)
     }
 
     // MARK: 配列
