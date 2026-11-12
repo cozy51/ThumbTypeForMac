@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  core-linux:
+    # OSに依存しない部分（同時打鍵エンジン・配列読み込み）のテスト
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test core
+        run: swift test
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test
+        run: swift test
+      - name: Build app (Universal)
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/build-app.sh
+        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build app (Universal, dev)
+        run: VERSION=0.1.0 ./scripts/build-app.sh
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      - name: Checksum
+        run: cd build && shasum -a 256 ThumbType-mac.zip | tee SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ThumbType-mac
+          path: |
+            build/ThumbType-mac.zip
+            build/SHA256SUMS.txt
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/ThumbType-mac.zip build/SHA256SUMS.txt --title "ThumbType for Mac $GITHUB_REF_NAME" --notes "README の「インストール」を参照してください。"
