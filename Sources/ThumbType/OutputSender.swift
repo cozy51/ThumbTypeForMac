@@ -38,9 +38,13 @@ final class OutputSender {
     func text(_ value: String) {
         if mode == .romaji, let romaji = KanaRomaji.romaji(for: value) {
             for ch in romaji {
-                guard let key = MacKey.asciiKeys[ch] else { continue }
                 // IMEが通常の打鍵と同じに扱えるよう、文字はキーコードから決めさせます。
-                post(key: key, unicode: nil)
+                if let key = MacKey.asciiKeys[ch] {
+                    post(key: key, unicode: nil)
+                } else if let key = MacKey.shiftedAsciiKeys[ch] {
+                    // 「？」「！」などはShift＋キーとして送り、IMEの未確定文字に含めます。
+                    post(key: key, unicode: nil, flags: .maskShift)
+                }
             }
             return
         }
@@ -53,10 +57,10 @@ final class OutputSender {
         post(key: key, unicode: nil)
     }
 
-    private func post(key: Int, unicode: String?) {
+    private func post(key: Int, unicode: String?, flags: CGEventFlags = []) {
         for down in [true, false] {
             guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: down) else { continue }
-            event.flags = []
+            event.flags = flags
             if let unicode {
                 let units = Array(unicode.utf16)
                 units.withUnsafeBufferPointer { buffer in
