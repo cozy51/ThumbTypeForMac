@@ -24,6 +24,9 @@ public enum KanaRomaji {
             ("ぁぃぅぇぉ", ["xa", "xi", "xu", "xe", "xo"]),
             ("ゃゅょっゎゔ", ["xya", "xyu", "xyo", "xtu", "xwa", "vu"]),
             ("ー、。・「」", ["-", ",", ".", "/", "[", "]"]),
+            // Shift＋キーで送る記号。Unicodeで送るとIMEが直前の未確定文字を確定してしまうため、
+            // 打鍵として送り、未確定文字のまま続けて入力できるようにします。
+            ("？！", ["?", "!"]),
         ]
         for (kana, romaji) in rows {
             for (k, r) in zip(kana, romaji) { t[k] = r }

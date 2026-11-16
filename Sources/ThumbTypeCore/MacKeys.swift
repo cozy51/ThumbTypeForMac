@@ -80,4 +80,9 @@ public enum MacKey {
         "n": n, "o": o, "p": p, "q": q, "r": r, "s": s, "t": t, "u": u, "v": v, "w": w, "x": x, "y": y, "z": z,
         "-": minus, ",": comma, ".": period, "/": slash, "[": openBracket, "]": closeBracket,
     ]
+
+    /// ローマ字入力の送信に使う、Shiftを押して打つASCII文字のキー（JIS配列の位置）。
+    public static let shiftedAsciiKeys: [Character: Int] = [
+        "?": slash, "!": one,
+    ]
 }

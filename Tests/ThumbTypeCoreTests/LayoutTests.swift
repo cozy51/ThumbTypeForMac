@@ -76,6 +76,8 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(KanaRomaji.romaji(for: "っ"), "xtu")
         XCTAssertEqual(KanaRomaji.romaji(for: "ゔ"), "vu")
         XCTAssertEqual(KanaRomaji.romaji(for: "。"), ".")
+        XCTAssertEqual(KanaRomaji.romaji(for: "？"), "?")
+        XCTAssertEqual(KanaRomaji.romaji(for: "！"), "!")
         XCTAssertNil(KanaRomaji.romaji(for: "１"))
         XCTAssertNil(KanaRomaji.romaji(for: "゛"))
         XCTAssertNil(KanaRomaji.romaji(for: ""))
@@ -83,7 +85,7 @@ final class LayoutTests: XCTestCase {
         for m in Layout.builtIn.rows.values {
             for v in [m.normal, m.left, m.right] {
                 if let r = KanaRomaji.romaji(for: v) {
-                    for ch in r { XCTAssertNotNil(MacKey.asciiKeys[ch], "key for \(ch)") }
+                    for ch in r { XCTAssertNotNil(MacKey.asciiKeys[ch] ?? MacKey.shiftedAsciiKeys[ch], "key for \(ch)") }
                 } else if v.unicodeScalars.allSatisfy({ (0x3041...0x3094).contains($0.value) }) {
                     XCTFail("kana without romaji: \(v)")
                 }
